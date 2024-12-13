@@ -15,8 +15,8 @@ use App\Entity\User;
 
 class UserController extends AbstractController
 {
-    #[Route('/register', name: 'view_profile', methods: ['POST'])]
-    public function create(Request $request, EntityManagerInterface $entityManager, UserPasswordHasherInterface $passwordHasher): JsonResponse
+    #[Route('/register', name: 'register', methods: ['POST'])]
+    public function register(Request $request, EntityManagerInterface $entityManager, UserPasswordHasherInterface $passwordHasher): JsonResponse
     {
         $data = json_decode($request->getContent(), true);
 
@@ -41,9 +41,64 @@ class UserController extends AbstractController
         return new JsonResponse(['message' => 'User create'], Response::HTTP_CREATED);
     }
 
+    #[Route('/user/profile', name: 'get_profile', methods: ['GET'])]
+    public function getProfile(Request $request, EntityManagerInterface $entityManager): JsonResponse
+    {
+        $email = $request->headers->get('email');
+
+        $user = $entityManager->getRepository(User::class)->findOneBy(['email' => $email]);
+
+        $data[] = [
+            'email' => $user->getEmail(),
+            'password' => $user->getPassword(),
+            'roles' => $user->getRoles(),
+            'name' => $user->getName(),
+            'phone_number' => $user->getPhoneNumber()
+        ];
+
+        return new JsonResponse($data, Response::HTTP_OK);
+    }
+
+    #[Route('/user/update', name: 'update_user', methods: ['PUT'])]
+    public function updateUser(Request $request, EntityManagerInterface $entityManager, UserPasswordHasherInterface $passwordHasher): JsonResponse
+    {
+        $email = $request->headers->get('email');
+        $data = json_decode($request->getContent(), true);
+
+        $newEmail = $data['email'];
+        $newPassword = $data['password'];
+        $newName = $data['name'];
+        $newPhoneNumber = $data['phone_number'];
+        
+        $user = $entityManager->getRepository(User::class)->findOneBy(['email' => $email]);
+        $hashedPassword = $passwordHasher->hashPassword($user, $newPassword);
+        
+        $user->setEmail($newEmail);
+        $user->setPassword($hashedPassword);
+        $user->setName($newName);
+        $user->setPhoneNumber($newPhoneNumber);
+
+        $entityManager->persist($user);
+        $entityManager->flush();
+
+        return new JsonResponse(['message' => 'A été mis a jour'], Response::HTTP_OK);
+    }
+
+    #[Route('/user/delete', name: 'delete_user', methods: ['DELETE'])]
+    public function deleteAccount(Request $request, UserRepository $userRepository, EntityManagerInterface $entityManager): JsonResponse
+    {
+        $email = $request->headers->get('email');
+        $user = $userRepository->findOneBy(['email' => $email]);
+
+        $entityManager->remove($user);
+        $entityManager->flush();
+
+        return new JsonResponse(['message' => 'Account successfully deleted'], Response::HTTP_OK);
+    }
+
     #[Route('/user/api_token_test', name: 'api_token_test', methods: ['GET'])]
     public function apiTokenWorks(): JsonResponse
     {
-        return new JsonResponse("Is connected as user", Response::HTTP_OK);
+        return new JsonResponse(['message' => 'Is connected as user'], Response::HTTP_OK);
     }
 }
